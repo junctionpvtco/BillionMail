@@ -1,0 +1,231 @@
+═══════════════════════════════════════════════════════════════════════════════
+                   BILLIONMAIL EVENT TRACKING ARCHITECTURE
+═══════════════════════════════════════════════════════════════════════════════
+
+1. EMAIL SENDING FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Dashboard/API                        Backend Service
+      │                                    │
+      ├─ Create Task ──────────────→ email_tasks table
+      │  (track_open=1, track_click=1)
+      │                                    │
+      └─ Add Recipients ──────────→ recipient_info table
+                                           │
+                                           ↓
+                                 Task Executor (5s timer)
+                                   ProcessEmailTasks()
+                                           │
+                    ┌──────────────────────┼──────────────────────┐
+                    ↓                      ↓                      ↓
+              HTML Processing       Message ID Gen         Postfix Queue
+              (MailTracker)          (UUID)                 
+                    │                      │                      │
+          ├─ Add tracking pixel     Store in               SMTP relay
+          │  (1x1 image)            mailstat_
+          │                         message_ids
+          └─ Wrap click URLs
+             (encrypted)
+
+
+2. EVENT TRACKING FLOW (Real-time)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Recipient Opens Email              Recipient Clicks Link
+         │                                   │
+         ↓                                   ↓
+Loads tracking pixel          Requests encrypted URL
+GET /pmta/{encrypted_data}    GET /pmta/{encrypted_data}
+         │                                   │
+         ├─ Decrypt event data              │
+         ├─ Validate data                   │
+         └─ Insert into              Insert into
+            mailstat_opened          mailstat_clicked
+            table                    table
+                 │                        │
+                 └────────┬────────────────┘
+                          │
+                    Update contact
+                    bm_contacts.last_active_at
+                    (contact_activity.go)
+                          │
+                          ↓
+              Return 1x1 PNG / Redirect to URL
+
+
+3. MAILLOG AGGREGATION FLOW (1min timer)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Postfix Mail Logs          System Log Collection
+         │                         │
+         ├─ Sent events ──────────→ mailstat_send_mails
+         ├─ Bounced ─────────────→ mailstat_send_mails (status=bounced)
+         ├─ Deferred ────────────→ mailstat_deferred_mails
+         └─ Received ────────────→ mailstat_receive_mails
+
+
+4. BOUNCE DETECTION & ABNORMAL RECIPIENT FLOW (30min timer)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Get bounced mails from    FailedListBounced()
+mailstat_send_mails       │
+(status='bounced')        ├─ Group by recipient
+    │                     │  
+    ├─ Extract recipients ├─ Map error descriptions
+    │                     │
+    └─→ Upsert into abnormal_recipient table
+        ├─ New: count=1, add_type=2 (auto)
+        └─ Existing: count++, update description
+
+
+5. API CAMPAIGN EMAIL FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+API Request (api_key, template_id, recipients)
+         │
+         ├─ Create api_mail_logs (status=0: pending)
+         │
+    ProcessApiMailQueueWithLock() [1min timer]
+         │
+    WorkerPool (20 workers)
+         │
+    For each mail:
+    ├─ Fetch api_templates from cache
+    ├─ Fetch email_templates
+    ├─ Fetch bm_contacts
+    ├─ Process variables/spintax
+    └─ Send via SMTP
+         │
+         └─ Update api_mail_logs
+            ├─ status=2 (sent)
+            └─ status=3 (failed)
+
+
+6. DATABASE SCHEMA OVERVIEW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Campaign Tracking Tables:
+┌─────────────────────────────────────────────────────────┐
+│ email_tasks (campaigns)                                 │
+│ ├─ id, task_name, addresser, subject                   │
+│ ├─ track_open (0/1), track_click (0/1)                │
+│ ├─ group_id (contact group)                           │
+│ └─ tag_ids, tag_logic (filtering)                      │
+│                                                         │
+│ recipient_info (per-email data)                        │
+│ ├─ task_id → email_tasks.id                           │
+│ ├─ recipient, message_id                              │
+│ └─ is_sent (0=pending, 1=sent, 2=ready)              │
+└─────────────────────────────────────────────────────────┘
+
+Event Tables:
+┌─────────────────────────────────────────────────────────┐
+│ mailstat_send_mails                                     │
+│ ├─ postfix_message_id, recipient, status               │
+│ ├─ mail_provider, delay, dsn, description              │
+│ └─ log_time_millis                                      │
+│                                                         │
+│ mailstat_opened (from pixel tracking)                   │
+│ ├─ campaign_id, recipient, message_id                  │
+│ └─ log_time_millis                                      │
+│                                                         │
+│ mailstat_clicked (from URL tracking)                    │
+│ ├─ campaign_id, recipient, url                         │
+│ └─ log_time_millis                                      │
+│                                                         │
+│ mailstat_message_ids (lookup table)                     │
+│ └─ postfix_message_id → message_id mapping              │
+└─────────────────────────────────────────────────────────┘
+
+Contact & Management:
+┌─────────────────────────────────────────────────────────┐
+│ abnormal_recipient (bounce list)                        │
+│ ├─ recipient (UNIQUE), count, description              │
+│ ├─ add_type: 1=manual, 2=auto-scan, 3=manual-scan     │
+│ └─ create_time                                          │
+│                                                         │
+│ bm_contacts                                             │
+│ ├─ email, group_id                                      │
+│ └─ last_active_at (updated on opens/clicks)           │
+└─────────────────────────────────────────────────────────┘
+
+
+7. API ROUTING STRUCTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Event Tracking (Public, No Auth):
+  GET /pmta/{encrypted_tracking_data}
+      ├─ Decrypt & validate
+      ├─ Type=open → Insert mailstat_opened
+      └─ Type=click → Insert mailstat_clicked, redirect
+
+Management API (Protected with JWT):
+  /api/batch_mail/
+      ├─ POST /create_task
+      ├─ POST /list_tasks
+      ├─ POST /delete_task
+      ├─ POST /task/{id}/info
+      ├─ POST /task/{id}/mail_logs (event history)
+      ├─ POST /task/{id}/send_count
+      ├─ POST /task/{id}/stat_chart
+      └─ POST /api/mail/send (API send)
+
+  /api/abnormal_recipient/
+      ├─ POST /list (bounced recipients)
+      ├─ POST /add (manual add)
+      ├─ POST /delete/{id}
+      ├─ POST /clear (bulk clear)
+      ├─ POST /switch/set (enable/disable auto-scan)
+      └─ POST /switch/get (get status)
+
+  /api/overview/
+      └─ POST /stats (dashboard data)
+
+
+8. CURRENT LIMITATIONS & WEBHOOK OPPORTUNITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current:
+  ✓ Events captured in real-time
+  ✓ Stored in database
+  ✓ Available via API queries
+  ✗ No external notification mechanism
+  ✗ No real-time event streaming
+  ✗ No webhook/callback system
+
+Webhook Opportunity:
+  → Add webhook subscription/management
+  → Trigger on events: open, click, bounce, deferred, complaint
+  → Deliver encrypted payloads to customer endpoints
+  → Retry logic for failed deliveries
+  → Event replay capability
+  → Status tracking per webhook
+
+
+9. ENCRYPTION DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Tracking URL/Pixel Encryption:
+  Data: {"type": "open/click", "campaign_id": X, "recipient": "...", ...}
+  ↓
+  JSON Marshal
+  ↓
+  AES-256-CBC Encryption (PKCS7 padding)
+  ↓
+  Random 16-byte Key & IV generation
+  ↓
+  Interleave: [k0,i0,k1,i1,...k7,i7] + [k8-15,i8-15]
+  ↓
+  Format: IV_Key + Ciphertext + IV_Key_Tail
+  ↓
+  Base64 URL-safe encode (trim padding)
+  ↓
+  Result: {encrypted_string}
+
+Used in:
+  - Click tracking URLs
+  - Pixel tracking URLs
+  - Prevents spoofing/tampering
+
+
+═══════════════════════════════════════════════════════════════════════════════
