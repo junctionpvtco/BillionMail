@@ -1,6 +1,7 @@
 package webhook
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -9,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -214,7 +214,7 @@ func ProcessRetries(ctx context.Context) {
 				"update_time":     now,
 			}).Update()
 		} else {
-			nextInterval := retryIntervals[0]
+			nextInterval := retryIntervals[len(retryIntervals)-1]
 			if newAttempts < len(retryIntervals) {
 				nextInterval = retryIntervals[newAttempts]
 			}
@@ -231,7 +231,7 @@ func ProcessRetries(ctx context.Context) {
 
 // sendWebhook sends a webhook HTTP request with HMAC-SHA256 signature
 func sendWebhook(webhookURL string, secret string, payload []byte) (statusCode int, body string, err error) {
-	req, err := http.NewRequest("POST", webhookURL, strings.NewReader(string(payload)))
+	req, err := http.NewRequest("POST", webhookURL, bytes.NewReader(payload))
 	if err != nil {
 		return 0, "", fmt.Errorf("failed to create request: %w", err)
 	}
