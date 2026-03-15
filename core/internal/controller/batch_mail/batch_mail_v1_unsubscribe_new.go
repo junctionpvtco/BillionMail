@@ -8,6 +8,7 @@ import (
 	"billionmail-core/internal/service/contact_activity"
 	"billionmail-core/internal/service/domains"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/webhook"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/os/gtimer"
@@ -97,6 +98,15 @@ func (c *ControllerV1) UnsubscribeNew(ctx context.Context, req *v1.UnsubscribeNe
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to process unsubscribe request")))
 		return
 	}
+
+	// Dispatch webhook for unsubscribe event
+	webhook.Dispatch(ctx, webhook.EventUnsubscribe, g.Map{
+		"email":       claims.Email,
+		"group_id":    claims.GroupId,
+		"template_id": claims.TemplateId,
+		"task_id":     claims.TaskId,
+		"timestamp":   time.Now().Unix(),
+	})
 
 	hostUrl := domains.GetBaseURL()
 

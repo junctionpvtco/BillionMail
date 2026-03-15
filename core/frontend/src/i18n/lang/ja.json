@@ -86,7 +86,8 @@
 			"service": "Service",
 			"logs": "Logs",
 			"operation_logs": "Operation Logs",
-			"error_logs": "Error Logs"
+			"error_logs": "Error Logs",
+			"webhook": "Webhook"
 		}
 	},
 	"login": {
@@ -754,7 +755,6 @@
 			}
 		}
 	},
-
 	"domain": {
 		"title": "MailDomain",
 		"addDomain": "ドメインを追加",
@@ -1490,6 +1490,52 @@
 		},
 		"search": {
 			"placeholder": "詳細/IPを入力して検索"
+		}
+	},
+	"webhook": {
+		"title": "Webhook",
+		"description": "メールイベントのリアルタイム通知を受信するためのWebhookエンドポイントを設定します。",
+		"addWebhook": "Webhook を追加",
+		"editWebhook": "Webhook を編集",
+		"deleteConfirm": "この Webhook を削除してもよろしいですか？",
+		"form": {
+			"url": "URL",
+			"urlPlaceholder": "https://example.com/webhook",
+			"urlRequired": "Webhook URL は必須です",
+			"secret": "シークレット",
+			"secretPlaceholder": "HMAC-SHA256 検証用の署名シークレット（オプション）",
+			"events": "イベント",
+			"eventsRequired": "少なくとも1つのイベントを選択してください",
+			"description": "説明",
+			"descriptionPlaceholder": "この Webhook のオプション説明",
+			"active": "有効"
+		},
+		"table": {
+			"url": "URL",
+			"events": "イベント",
+			"status": "ステータス",
+			"description": "説明",
+			"actions": "操作",
+			"enabled": "有効",
+			"disabled": "無効"
+		},
+		"logs": {
+			"title": "配信ログ",
+			"filterByWebhook": "Webhook でフィルター",
+			"allWebhooks": "すべての Webhook",
+			"eventType": "イベントタイプ",
+			"status": "ステータス",
+			"httpStatus": "HTTP ステータス",
+			"attempts": "試行回数",
+			"time": "時刻",
+			"pending": "保留中",
+			"success": "成功",
+			"failed": "失敗"
+		},
+		"api": {
+			"creating": "Webhook を作成中...",
+			"updating": "Webhook を更新中...",
+			"deleting": "Webhook を削除中..."
 		}
 	}
 }
