@@ -5,6 +5,7 @@ import (
 	"billionmail-core/internal/service/batch_mail"
 	"billionmail-core/internal/service/contact_activity"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/webhook"
 	"context"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -87,6 +88,15 @@ func (c *ControllerV1) Unsubscribe(ctx context.Context, req *v1.UnsubscribeReq) 
 		res.SetError(gerror.New(public.LangCtx(ctx, "Email address is required")))
 		return
 	}
+
+	// Dispatch webhook for unsubscribe event
+	webhook.Dispatch(ctx, webhook.EventUnsubscribe, g.Map{
+		"email":       claims.Email,
+		"group_ids":   req.GroupId,
+		"template_id": claims.TemplateId,
+		"task_id":     claims.TaskId,
+		"timestamp":   time.Now().Unix(),
+	})
 
 	res.SetSuccess(public.LangCtx(ctx, "You have been successfully unsubscribed"))
 	return

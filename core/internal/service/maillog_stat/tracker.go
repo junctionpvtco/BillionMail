@@ -3,6 +3,7 @@ package maillog_stat
 import (
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/contact_activity"
+	"billionmail-core/internal/service/webhook"
 	"fmt"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -61,6 +62,14 @@ func CampaignEventHandler(r *ghttp.Request, encStr string) {
 			g.Log().Error(ctx, err)
 		}
 
+		// Dispatch webhook for open event
+		webhook.Dispatch(ctx, webhook.EventOpen, g.Map{
+			"recipient":   data.Recipient,
+			"campaign_id": data.CampaignId,
+			"message_id":  data.MessageId,
+			"timestamp":   curTimeMillis / 1000,
+		})
+
 		// Update contact activity when email is opened
 		var groupId int
 		if data.CampaignId > 1000000000 {
@@ -104,6 +113,16 @@ func CampaignEventHandler(r *ghttp.Request, encStr string) {
 		if err != nil {
 			g.Log().Error(ctx, err)
 		}
+
+		// Dispatch webhook for click event
+		webhook.Dispatch(ctx, webhook.EventClick, g.Map{
+			"recipient":   data.Recipient,
+			"campaign_id": data.CampaignId,
+			"message_id":  data.MessageId,
+			"url":         data.Url,
+			"timestamp":   curTimeMillis / 1000,
+		})
+
 		g.Log().Debug(ctx, "记录点击 !!! Click event data: ", data.Recipient)
 
 		// Update contact activity when link is clicked

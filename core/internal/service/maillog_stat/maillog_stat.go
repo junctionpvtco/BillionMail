@@ -3,6 +3,7 @@ package maillog_stat
 import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/webhook"
 	"context"
 	"errors"
 	"fmt"
@@ -722,6 +723,29 @@ func (ms *MaillogStat) AnalysisAndSaveToDatabase(ctx context.Context) error {
 		if err != nil {
 			g.Log().Error(context.Background(), err.Error())
 		}
+
+		// Dispatch webhooks for delivery and bounce events
+		for _, r := range sendRecords {
+			switch r.Status {
+			case "sent":
+				webhook.Dispatch(ctx, webhook.EventDelivery, g.Map{
+					"recipient":          r.Recipient,
+					"postfix_message_id": r.PostfixMessageID,
+					"status":             r.Status,
+					"dsn":                r.Dsn,
+					"timestamp":          r.LogTimeMillis / 1000,
+				})
+			case "bounced":
+				webhook.Dispatch(ctx, webhook.EventBounce, g.Map{
+					"recipient":          r.Recipient,
+					"postfix_message_id": r.PostfixMessageID,
+					"status":             r.Status,
+					"dsn":                r.Dsn,
+					"description":        r.Description,
+					"timestamp":          r.LogTimeMillis / 1000,
+				})
+			}
+		}
 	}
 
 	if len(receiveRecords) > 0 {
@@ -769,6 +793,16 @@ func (ms *MaillogStat) AnalysisAndSaveToDatabase(ctx context.Context) error {
 		_, err = g.DB().Model("mailstat_deferred_mails").Batch(5000).Insert(deferredRecords)
 		if err != nil {
 			g.Log().Error(context.Background(), err.Error())
+		}
+
+		// Dispatch webhooks for deferral events
+		for _, r := range deferredRecords {
+			webhook.Dispatch(ctx, webhook.EventDeferral, g.Map{
+				"postfix_message_id": r.PostfixMessageID,
+				"dsn":                r.Dsn,
+				"description":        r.Description,
+				"timestamp":          r.LogTimeMillis / 1000,
+			})
 		}
 	}
 

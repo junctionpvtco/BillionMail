@@ -14,6 +14,7 @@ import (
 	"billionmail-core/internal/service/multi_ip_domain"
 	"billionmail-core/internal/service/relay"
 	"billionmail-core/internal/service/warmup"
+	"billionmail-core/internal/service/webhook"
 	"context"
 	"time"
 
@@ -187,6 +188,11 @@ func Start(ctx context.Context) (err error) {
 	// Check the domain name blacklist
 	gtimer.Add(24*time.Hour, func() {
 		domains.CheckDomainsBlacklist(ctx)
+	})
+
+	// Webhook retry processing
+	gtimer.Add(1*time.Minute, func() {
+		webhook.ProcessRetries(ctx)
 	})
 
 	gtimer.Add(24*time.Hour, func() {

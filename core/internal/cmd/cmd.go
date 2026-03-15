@@ -22,6 +22,7 @@ import (
 	"billionmail-core/internal/controller/settings"
 	"billionmail-core/internal/controller/subscribe_list"
 	"billionmail-core/internal/controller/tags"
+	"billionmail-core/internal/controller/webhook"
 	"billionmail-core/internal/service/database_initialization"
 	docker "billionmail-core/internal/service/dockerapi"
 	"billionmail-core/internal/service/maillog_stat"
@@ -262,6 +263,7 @@ var (
 					operation_log.NewV1(),
 					askai.NewV1(),
 					tags.NewV1(),
+					webhook.NewV1(),
 				)
 			})
 
