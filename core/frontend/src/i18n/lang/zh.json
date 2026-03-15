@@ -95,7 +95,8 @@
 			"service": "服务",
 			"logs": "日志",
 			"operation_logs": "操作日志",
-			"error_logs": "错误日志"
+			"error_logs": "错误日志",
+			"webhook": "Webhooks"
 		}
 	},
 	"login": {
@@ -1565,6 +1566,52 @@
 			"updating": "正在编辑，请稍候...",
 			"deleting": "正在删除，请稍候...",
 			"testing": "正在测试，请稍候..."
+		}
+	},
+	"webhook": {
+		"title": "Webhooks",
+		"description": "配置 Webhook 端点以接收邮件事件的实时通知。",
+		"addWebhook": "添加 Webhook",
+		"editWebhook": "编辑 Webhook",
+		"deleteConfirm": "确定要删除此 Webhook 吗？",
+		"form": {
+			"url": "URL",
+			"urlPlaceholder": "https://example.com/webhook",
+			"urlRequired": "Webhook URL 不能为空",
+			"secret": "密钥",
+			"secretPlaceholder": "用于 HMAC-SHA256 验证的签名密钥（可选）",
+			"events": "事件",
+			"eventsRequired": "请至少选择一个事件",
+			"description": "描述",
+			"descriptionPlaceholder": "Webhook 的可选描述",
+			"active": "启用"
+		},
+		"table": {
+			"url": "URL",
+			"events": "事件",
+			"status": "状态",
+			"description": "描述",
+			"actions": "操作",
+			"enabled": "已启用",
+			"disabled": "已禁用"
+		},
+		"logs": {
+			"title": "投递日志",
+			"filterByWebhook": "按 Webhook 筛选",
+			"allWebhooks": "所有 Webhook",
+			"eventType": "事件类型",
+			"status": "状态",
+			"httpStatus": "HTTP 状态码",
+			"attempts": "尝试次数",
+			"time": "时间",
+			"pending": "待处理",
+			"success": "成功",
+			"failed": "失败"
+		},
+		"api": {
+			"creating": "正在创建 Webhook...",
+			"updating": "正在更新 Webhook...",
+			"deleting": "正在删除 Webhook..."
 		}
 	}
 }

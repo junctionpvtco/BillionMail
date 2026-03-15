@@ -51,6 +51,12 @@ const route: RouteRecordRaw = {
 					meta: { title: 'Send Queue', titleKey: '' },
 					component: () => import('@/views/settings/send-queue/index.vue'),
 				},
+				{
+					path: 'webhook',
+					name: 'SettingsWebhook',
+					meta: { title: 'Webhooks', titleKey: 'layout.menu.webhook' },
+					component: () => import('@/views/settings/webhook/index.vue'),
+				},
 			],
 		},
 		{
